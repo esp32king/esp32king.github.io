@@ -69,7 +69,6 @@
 
   .delete-btn {
     background-color: #e84118;
-    padding: 5px 10px;
   }
   .delete-btn:hover { background-color: #ff4d4d; }
 </style>
@@ -95,21 +94,20 @@
 <div class="card" id="files-card" style="display:none;">
   <h3>Bin Files</h3>
   <div id="files-container">
-    <!-- Predefined files with delete button -->
     <div class="file-entry">
-      <button class="delete-btn">🗑️</button>
       <input type="file" class="file" accept=".bin" />
       <input type="text" class="address" value="0x1000" />
+      <button class="delete-btn">🗑️</button>
     </div>
     <div class="file-entry">
-      <button class="delete-btn">🗑️</button>
       <input type="file" class="file" accept=".bin" />
       <input type="text" class="address" value="0x8000" />
+      <button class="delete-btn">🗑️</button>
     </div>
     <div class="file-entry">
-      <button class="delete-btn">🗑️</button>
       <input type="file" class="file" accept=".bin" />
       <input type="text" class="address" value="0x10000" />
+      <button class="delete-btn">🗑️</button>
     </div>
   </div>
   <button id="add-file">➕ Add Another Bin</button>
@@ -149,19 +147,17 @@ document.getElementById('add-file').addEventListener('click', () => {
   const container = document.getElementById('files-container');
   const div = document.createElement('div');
   div.className = 'file-entry';
-  div.innerHTML = `<button class="delete-btn">🗑️</button>
-                   <input type="file" class="file" accept=".bin" />
-                   <input type="text" class="address" placeholder="0x10000" />`;
+  div.innerHTML = `<input type="file" class="file" accept=".bin" />
+                   <input type="text" class="address" placeholder="0x10000" />
+                   <button class="delete-btn">🗑️</button>`;
   container.appendChild(div);
   attachDelete(div);
 });
 
-// Attach delete handler
+// Attach delete button to a div
 function attachDelete(div){
   const btn = div.querySelector('.delete-btn');
-  btn.addEventListener('click', () => {
-    div.remove();
-  });
+  btn.addEventListener('click', () => { div.remove(); });
 }
 
 // Attach delete to existing entries
@@ -199,7 +195,6 @@ document.getElementById('flash').addEventListener('click', async () => {
     }
   }
 
-  // For ESP8266, keep only the first file
   if(board === "esp8266" && filesData.length > 1){
     filesData = [filesData[0]];
   }
