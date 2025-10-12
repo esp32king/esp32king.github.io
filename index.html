@@ -86,11 +86,19 @@
   <option value="esp8266">ESP8266</option>
 </select>
 
-<!-- Multiple Bin Uploads -->
+<!-- Multiple Bin Uploads with pre-defined addresses -->
 <div id="files-container">
   <div class="file-entry">
     <input type="file" class="file" accept=".bin" />
-    <input type="text" class="address" placeholder="0x10000" />
+    <input type="text" class="address" value="0x1000" />
+  </div>
+  <div class="file-entry">
+    <input type="file" class="file" accept=".bin" />
+    <input type="text" class="address" value="0x8000" />
+  </div>
+  <div class="file-entry">
+    <input type="file" class="file" accept=".bin" />
+    <input type="text" class="address" value="0x10000" />
   </div>
 </div>
 <button id="add-file">➕ Add Another Bin</button>
@@ -105,7 +113,7 @@
 let port;
 let filesData = [];
 
-// Add another file input
+// Add another file input dynamically
 document.getElementById('add-file').addEventListener('click', () => {
   const container = document.getElementById('files-container');
   const div = document.createElement('div');
@@ -127,16 +135,16 @@ document.getElementById('connect').addEventListener('click', async () => {
   }
 });
 
-// Prepare files
+// Flash all files
 document.getElementById('flash').addEventListener('click', async () => {
   if(!port){
     log("⚠️ Connect to board first.");
     return;
   }
 
-  // Collect files and addresses
   const entries = document.querySelectorAll('.file-entry');
   filesData = [];
+
   for(const entry of entries){
     const fileInput = entry.querySelector('.file');
     const addressInput = entry.querySelector('.address');
@@ -165,7 +173,6 @@ document.getElementById('flash').addEventListener('click', async () => {
 
   try{
     for(const f of filesData){
-      // Using espressif WebFlasher library
       await webFlasher.flashESP32(port, f.data, parseInt(f.address, 16));
       log(`✅ Flashed ${f.address}`);
     }
