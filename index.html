@@ -16,9 +16,7 @@
     padding: 40px;
   }
 
-  h2 {
-    color: #e84118;
-  }
+  h2 { color: #e84118; }
 
   .card {
     background: #fff;
@@ -31,7 +29,7 @@
   }
 
   button {
-    padding: 10px 20px;
+    padding: 8px 18px;
     margin: 5px;
     background-color: #0097e6;
     color: white;
@@ -41,16 +39,13 @@
     transition: 0.3s;
   }
 
-  button:hover {
-    background-color: #00a8ff;
-  }
+  button:hover { background-color: #00a8ff; }
 
   select, input[type="file"], input[type="text"] {
-    margin: 10px 0;
-    padding: 8px;
+    margin: 8px 0;
+    padding: 6px;
     border-radius: 5px;
     border: 1px solid #ccc;
-    width: 200px;
   }
 
   #log {
@@ -70,18 +65,13 @@
     margin-bottom: 10px;
   }
 
-  .file-entry input[type="text"] {
-    width: 120px;
-  }
+  .file-entry input[type="text"] { width: 120px; }
 
-  #erase {
+  .delete-btn {
     background-color: #e84118;
+    padding: 5px 10px;
   }
-
-  #erase:hover {
-    background-color: #ff4d4d;
-  }
-
+  .delete-btn:hover { background-color: #ff4d4d; }
 </style>
 </head>
 <body>
@@ -90,21 +80,34 @@
 
 <div class="card">
   <button id="connect">Connect to Board</button>
+  <div style="margin-top:10px;">
+    <label>Select Board:</label>
+    <select id="board">
+      <option value="esp32">ESP32</option>
+      <option value="esp32s2">ESP32-S2</option>
+      <option value="esp32c3">ESP32-C3</option>
+      <option value="esp8266">ESP8266</option>
+    </select>
+  </div>
   <div id="board-info" style="margin-top:10px;"></div>
 </div>
 
 <div class="card" id="files-card" style="display:none;">
   <h3>Bin Files</h3>
   <div id="files-container">
+    <!-- Predefined files with delete button -->
     <div class="file-entry">
+      <button class="delete-btn">🗑️</button>
       <input type="file" class="file" accept=".bin" />
       <input type="text" class="address" value="0x1000" />
     </div>
     <div class="file-entry">
+      <button class="delete-btn">🗑️</button>
       <input type="file" class="file" accept=".bin" />
       <input type="text" class="address" value="0x8000" />
     </div>
     <div class="file-entry">
+      <button class="delete-btn">🗑️</button>
       <input type="file" class="file" accept=".bin" />
       <input type="text" class="address" value="0x10000" />
     </div>
@@ -121,7 +124,14 @@
 let port;
 let filesData = [];
 
-// Connect Button
+// Logging
+function log(msg){
+  const pre = document.getElementById('log');
+  pre.textContent += msg + "\n";
+  pre.scrollTop = pre.scrollHeight;
+}
+
+// Connect
 document.getElementById('connect').addEventListener('click', async () => {
   try {
     port = await navigator.serial.requestPort();
@@ -134,25 +144,41 @@ document.getElementById('connect').addEventListener('click', async () => {
   }
 });
 
-// Add another file dynamically
+// Add new file entry
 document.getElementById('add-file').addEventListener('click', () => {
   const container = document.getElementById('files-container');
   const div = document.createElement('div');
   div.className = 'file-entry';
-  div.innerHTML = `<input type="file" class="file" accept=".bin" />
+  div.innerHTML = `<button class="delete-btn">🗑️</button>
+                   <input type="file" class="file" accept=".bin" />
                    <input type="text" class="address" placeholder="0x10000" />`;
   container.appendChild(div);
+  attachDelete(div);
 });
 
-// Flash Button
-document.getElementById('flash').addEventListener('click', async () => {
-  if(!port){
-    log("⚠️ Connect to board first.");
-    return;
-  }
+// Attach delete handler
+function attachDelete(div){
+  const btn = div.querySelector('.delete-btn');
+  btn.addEventListener('click', () => {
+    div.remove();
+  });
+}
 
+// Attach delete to existing entries
+document.querySelectorAll('.file-entry').forEach(attachDelete);
+
+// Flash
+document.getElementById('flash').addEventListener('click', async () => {
+  if(!port){ log("⚠️ Connect to board first."); return; }
+
+  const board = document.getElementById('board').value;
   const entries = document.querySelectorAll('.file-entry');
   filesData = [];
+
+  // ESP8266 check: only 1 file allowed
+  if(board === "esp8266" && entries.length > 1){
+    log("⚠️ ESP8266 supports only 1 file. Extra files will be ignored.");
+  }
 
   for(const entry of entries){
     const fileInput = entry.querySelector('.file');
@@ -173,17 +199,24 @@ document.getElementById('flash').addEventListener('click', async () => {
     }
   }
 
-  if(filesData.length === 0){
-    log("⚠️ No files selected.");
-    return;
+  // For ESP8266, keep only the first file
+  if(board === "esp8266" && filesData.length > 1){
+    filesData = [filesData[0]];
   }
+
+  if(filesData.length === 0){ log("⚠️ No files selected."); return; }
 
   log("⚡ Flashing started...");
 
   try {
     for(const f of filesData){
-      await webFlasher.flashESP32(port, f.data, parseInt(f.address,16));
-      log(`✅ Flashed ${f.address}`);
+      if(board === "esp8266"){
+        await webFlasher.flashESP8266(port, f.data, parseInt(f.address,16));
+        log(`✅ ESP8266 Flashed ${f.address}`);
+      } else {
+        await webFlasher.flashESP32(port, f.data, parseInt(f.address,16));
+        log(`✅ ESP32 Flashed ${f.address}`);
+      }
     }
     log("🎉 Flashing complete!");
     await port.close();
@@ -192,12 +225,9 @@ document.getElementById('flash').addEventListener('click', async () => {
   }
 });
 
-// Erase Button
+// Erase
 document.getElementById('erase').addEventListener('click', async () => {
-  if(!port){
-    log("⚠️ Connect to board first.");
-    return;
-  }
+  if(!port){ log("⚠️ Connect to board first."); return; }
   try {
     log("🧹 Erasing flash...");
     await webFlasher.eraseFlash(port);
@@ -206,13 +236,6 @@ document.getElementById('erase').addEventListener('click', async () => {
     log("❌ Erase failed: " + err);
   }
 });
-
-// Logging helper
-function log(msg){
-  const pre = document.getElementById('log');
-  pre.textContent += msg + "\n";
-  pre.scrollTop = pre.scrollHeight;
-}
 </script>
 
 </body>
