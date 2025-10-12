@@ -8,35 +8,31 @@
 <style>
   body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+    color: #2f3640;
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 40px;
-    background: #f5f6fa;
-    color: #2f3640;
   }
 
   h2 {
     color: #e84118;
+  }
+
+  .card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 600px;
     margin-bottom: 20px;
   }
 
-  label {
-    font-weight: bold;
-    margin-top: 10px;
-  }
-
-  select, input[type="file"], input[type="text"] {
-    margin: 10px 0;
-    padding: 8px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    width: 200px;
-  }
-
   button {
-    padding: 10px 25px;
-    margin: 10px;
+    padding: 10px 20px;
+    margin: 5px;
     background-color: #0097e6;
     color: white;
     border: none;
@@ -49,16 +45,21 @@
     background-color: #00a8ff;
   }
 
+  select, input[type="file"], input[type="text"] {
+    margin: 10px 0;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    width: 200px;
+  }
+
   #log {
     border: 1px solid #ccc;
     padding: 10px;
-    width: 90%;
-    max-width: 600px;
     height: 200px;
     overflow: auto;
-    background: #fff;
+    background: #f7f9fb;
     border-radius: 5px;
-    margin-top: 20px;
     white-space: pre-wrap;
   }
 
@@ -66,54 +67,74 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 5px;
+    margin-bottom: 10px;
   }
 
   .file-entry input[type="text"] {
-    width: 100px;
+    width: 120px;
   }
+
+  #erase {
+    background-color: #e84118;
+  }
+
+  #erase:hover {
+    background-color: #ff4d4d;
+  }
+
 </style>
 </head>
 <body>
 
 <h2>ESP Web Flasher</h2>
 
-<label>Select Board:</label>
-<select id="board">
-  <option value="esp32">ESP32</option>
-  <option value="esp32s2">ESP32-S2</option>
-  <option value="esp32c3">ESP32-C3</option>
-  <option value="esp8266">ESP8266</option>
-</select>
-
-<!-- Multiple Bin Uploads with pre-defined addresses -->
-<div id="files-container">
-  <div class="file-entry">
-    <input type="file" class="file" accept=".bin" />
-    <input type="text" class="address" value="0x1000" />
-  </div>
-  <div class="file-entry">
-    <input type="file" class="file" accept=".bin" />
-    <input type="text" class="address" value="0x8000" />
-  </div>
-  <div class="file-entry">
-    <input type="file" class="file" accept=".bin" />
-    <input type="text" class="address" value="0x10000" />
-  </div>
+<div class="card">
+  <button id="connect">Connect to Board</button>
+  <div id="board-info" style="margin-top:10px;"></div>
 </div>
-<button id="add-file">➕ Add Another Bin</button>
-<br>
 
-<button id="connect">Connect to Board</button>
-<button id="flash" disabled>Flash .bin Files</button>
+<div class="card" id="files-card" style="display:none;">
+  <h3>Bin Files</h3>
+  <div id="files-container">
+    <div class="file-entry">
+      <input type="file" class="file" accept=".bin" />
+      <input type="text" class="address" value="0x1000" />
+    </div>
+    <div class="file-entry">
+      <input type="file" class="file" accept=".bin" />
+      <input type="text" class="address" value="0x8000" />
+    </div>
+    <div class="file-entry">
+      <input type="file" class="file" accept=".bin" />
+      <input type="text" class="address" value="0x10000" />
+    </div>
+  </div>
+  <button id="add-file">➕ Add Another Bin</button>
+  <br>
+  <button id="erase">Erase Flash</button>
+  <button id="flash">Flash Files</button>
+</div>
 
-<pre id="log"></pre>
+<pre id="log" class="card"></pre>
 
 <script>
 let port;
 let filesData = [];
 
-// Add another file input dynamically
+// Connect Button
+document.getElementById('connect').addEventListener('click', async () => {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    document.getElementById('board-info').innerHTML = "✅ Connected to ESP board!";
+    document.getElementById('files-card').style.display = "block";
+    log("Connected to board successfully.");
+  } catch (err) {
+    log("❌ Connection failed: " + err);
+  }
+});
+
+// Add another file dynamically
 document.getElementById('add-file').addEventListener('click', () => {
   const container = document.getElementById('files-container');
   const div = document.createElement('div');
@@ -123,19 +144,7 @@ document.getElementById('add-file').addEventListener('click', () => {
   container.appendChild(div);
 });
 
-// Connect Button
-document.getElementById('connect').addEventListener('click', async () => {
-  try {
-    port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 115200 });
-    log("✅ Connected to board!");
-    document.getElementById('flash').disabled = false;
-  } catch (err) {
-    log("❌ Connection failed: " + err);
-  }
-});
-
-// Flash all files
+// Flash Button
 document.getElementById('flash').addEventListener('click', async () => {
   if(!port){
     log("⚠️ Connect to board first.");
@@ -147,9 +156,9 @@ document.getElementById('flash').addEventListener('click', async () => {
 
   for(const entry of entries){
     const fileInput = entry.querySelector('.file');
-    const addressInput = entry.querySelector('.address');
+    const addrInput = entry.querySelector('.address');
     const file = fileInput.files[0];
-    const addr = addressInput.value.trim();
+    const addr = addrInput.value.trim();
     if(file && addr){
       const reader = new FileReader();
       await new Promise((res, rej) => {
@@ -165,21 +174,36 @@ document.getElementById('flash').addEventListener('click', async () => {
   }
 
   if(filesData.length === 0){
-    log("⚠️ No valid files selected.");
+    log("⚠️ No files selected.");
     return;
   }
 
   log("⚡ Flashing started...");
 
-  try{
+  try {
     for(const f of filesData){
-      await webFlasher.flashESP32(port, f.data, parseInt(f.address, 16));
+      await webFlasher.flashESP32(port, f.data, parseInt(f.address,16));
       log(`✅ Flashed ${f.address}`);
     }
     log("🎉 Flashing complete!");
     await port.close();
   } catch(err){
     log("❌ Flash failed: " + err);
+  }
+});
+
+// Erase Button
+document.getElementById('erase').addEventListener('click', async () => {
+  if(!port){
+    log("⚠️ Connect to board first.");
+    return;
+  }
+  try {
+    log("🧹 Erasing flash...");
+    await webFlasher.eraseFlash(port);
+    log("✅ Flash erased!");
+  } catch(err){
+    log("❌ Erase failed: " + err);
   }
 });
 
