@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Web Flasher</title>
+<script src="https://cdn.jsdelivr.net/gh/espressif/web-flasher@main/web-flasher.js"></script>
+<style>
+  body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 50px; }
+  button { padding: 10px 20px; margin: 10px; }
+</style>
+</head>
+<body>
+
+<h2>ESP32 Web Flasher</h2>
+
+<!-- Board Selection -->
+<label>Select Board:</label>
+<select id="board">
+  <option value="esp32">ESP32</option>
+  <option value="esp32s2">ESP32-S2</option>
+  <option value="esp32c3">ESP32-C3</option>
+</select>
+
+<!-- Bin Upload -->
+<input type="file" id="file" accept=".bin" />
+<br>
+
+<button id="connect">Connect to ESP32</button>
+<button id="flash" disabled>Flash .bin</button>
+
+<pre id="log" style="border:1px solid #ccc; padding:10px; width:90%; height:200px; overflow:auto;"></pre>
+
+<script>
+let port;
+let fileData;
+
+// Connect Button
+document.getElementById('connect').addEventListener('click', async () => {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    log("✅ Connected to ESP32!");
+    document.getElementById('flash').disabled = false;
+  } catch (err) {
+    log("❌ Connection failed: " + err);
+  }
+});
+
+// File upload
+document.getElementById('file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(file){
+    const reader = new FileReader();
+    reader.onload = () => { fileData = new Uint8Array(reader.result); }
+    reader.readAsArrayBuffer(file);
+    log("📂 File ready: " + file.name);
+  }
+});
+
+// Flash Button
+document.getElementById('flash').addEventListener('click', async () => {
+  if(!port || !fileData){
+    log("⚠️ Connect port and select a file first.");
+    return;
+  }
+
+  log("⚡ Flashing started...");
+
+  // Using espressif WebFlasher library
+  try{
+    await webFlasher.flashESP32(port, fileData);
+    log("✅ Flashing complete!");
+    await port.close();
+  } catch(err){
+    log("❌ Flash failed: " + err);
+  }
+});
+
+// Logging helper
+function log(msg){
+  const pre = document.getElementById('log');
+  pre.textContent += msg + "\n";
+  pre.scrollTop = pre.scrollHeight;
+}
+</script>
+
+</body>
+</html>
