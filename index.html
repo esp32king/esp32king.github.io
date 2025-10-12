@@ -3,74 +3,173 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP32 Web Flasher</title>
+<title>ESP Web Flasher</title>
 <script src="https://cdn.jsdelivr.net/gh/espressif/web-flasher@main/web-flasher.js"></script>
 <style>
-  body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 50px; }
-  button { padding: 10px 20px; margin: 10px; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+    background: #f5f6fa;
+    color: #2f3640;
+  }
+
+  h2 {
+    color: #e84118;
+    margin-bottom: 20px;
+  }
+
+  label {
+    font-weight: bold;
+    margin-top: 10px;
+  }
+
+  select, input[type="file"], input[type="text"] {
+    margin: 10px 0;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    width: 200px;
+  }
+
+  button {
+    padding: 10px 25px;
+    margin: 10px;
+    background-color: #0097e6;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+
+  button:hover {
+    background-color: #00a8ff;
+  }
+
+  #log {
+    border: 1px solid #ccc;
+    padding: 10px;
+    width: 90%;
+    max-width: 600px;
+    height: 200px;
+    overflow: auto;
+    background: #fff;
+    border-radius: 5px;
+    margin-top: 20px;
+    white-space: pre-wrap;
+  }
+
+  .file-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .file-entry input[type="text"] {
+    width: 100px;
+  }
 </style>
 </head>
 <body>
 
-<h2>ESP32 Web Flasher</h2>
+<h2>ESP Web Flasher</h2>
 
-<!-- Board Selection -->
 <label>Select Board:</label>
 <select id="board">
   <option value="esp32">ESP32</option>
   <option value="esp32s2">ESP32-S2</option>
   <option value="esp32c3">ESP32-C3</option>
+  <option value="esp8266">ESP8266</option>
 </select>
 
-<!-- Bin Upload -->
-<input type="file" id="file" accept=".bin" />
+<!-- Multiple Bin Uploads -->
+<div id="files-container">
+  <div class="file-entry">
+    <input type="file" class="file" accept=".bin" />
+    <input type="text" class="address" placeholder="0x10000" />
+  </div>
+</div>
+<button id="add-file">➕ Add Another Bin</button>
 <br>
 
-<button id="connect">Connect to ESP32</button>
-<button id="flash" disabled>Flash .bin</button>
+<button id="connect">Connect to Board</button>
+<button id="flash" disabled>Flash .bin Files</button>
 
-<pre id="log" style="border:1px solid #ccc; padding:10px; width:90%; height:200px; overflow:auto;"></pre>
+<pre id="log"></pre>
 
 <script>
 let port;
-let fileData;
+let filesData = [];
+
+// Add another file input
+document.getElementById('add-file').addEventListener('click', () => {
+  const container = document.getElementById('files-container');
+  const div = document.createElement('div');
+  div.className = 'file-entry';
+  div.innerHTML = `<input type="file" class="file" accept=".bin" />
+                   <input type="text" class="address" placeholder="0x10000" />`;
+  container.appendChild(div);
+});
 
 // Connect Button
 document.getElementById('connect').addEventListener('click', async () => {
   try {
     port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
-    log("✅ Connected to ESP32!");
+    log("✅ Connected to board!");
     document.getElementById('flash').disabled = false;
   } catch (err) {
     log("❌ Connection failed: " + err);
   }
 });
 
-// File upload
-document.getElementById('file').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(file){
-    const reader = new FileReader();
-    reader.onload = () => { fileData = new Uint8Array(reader.result); }
-    reader.readAsArrayBuffer(file);
-    log("📂 File ready: " + file.name);
-  }
-});
-
-// Flash Button
+// Prepare files
 document.getElementById('flash').addEventListener('click', async () => {
-  if(!port || !fileData){
-    log("⚠️ Connect port and select a file first.");
+  if(!port){
+    log("⚠️ Connect to board first.");
+    return;
+  }
+
+  // Collect files and addresses
+  const entries = document.querySelectorAll('.file-entry');
+  filesData = [];
+  for(const entry of entries){
+    const fileInput = entry.querySelector('.file');
+    const addressInput = entry.querySelector('.address');
+    const file = fileInput.files[0];
+    const addr = addressInput.value.trim();
+    if(file && addr){
+      const reader = new FileReader();
+      await new Promise((res, rej) => {
+        reader.onload = () => {
+          filesData.push({ data: new Uint8Array(reader.result), address: addr });
+          log(`📂 File ready: ${file.name} at ${addr}`);
+          res();
+        }
+        reader.onerror = () => rej("File read error");
+        reader.readAsArrayBuffer(file);
+      });
+    }
+  }
+
+  if(filesData.length === 0){
+    log("⚠️ No valid files selected.");
     return;
   }
 
   log("⚡ Flashing started...");
 
-  // Using espressif WebFlasher library
   try{
-    await webFlasher.flashESP32(port, fileData);
-    log("✅ Flashing complete!");
+    for(const f of filesData){
+      // Using espressif WebFlasher library
+      await webFlasher.flashESP32(port, f.data, parseInt(f.address, 16));
+      log(`✅ Flashed ${f.address}`);
+    }
+    log("🎉 Flashing complete!");
     await port.close();
   } catch(err){
     log("❌ Flash failed: " + err);
